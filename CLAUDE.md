@@ -28,6 +28,8 @@ the services over HTTP; they never import service code.
 
 - `.claude/skills/sync-integration-tests/`: the sync procedure (assess impact, delegate, verify, report).
 - `.claude/agents/integration-test-author.md`: the agent that edits tests; it follows the conventions above.
+  `.github/agents/integration-test-author.agent.md` is the Copilot copy; keep both bodies identical.
+- `scripts/sync.sh`: runs detection, the agent, verification and state recording; CI calls the same script.
 
 ## Running locally
 

@@ -15,8 +15,8 @@ automatically.
    - `implementation`: code changed, contract did not;
    - `contract-extended`: the OpenAPI contract only gained lines;
    - `contract-changed`: the contract lost or changed lines.
-4. If anything relevant changed, it starts both services at their new heads and runs Claude
-   (`anthropics/claude-code-action`) with the **`sync-integration-tests` skill**
+4. If anything relevant changed, it starts both services at their new heads and runs a coding agent
+   (Claude Code by default, or Copilot CLI) with the **`sync-integration-tests` skill**
    (`.claude/skills/sync-integration-tests/SKILL.md`). The skill classifies each upstream change,
    hands the hands-on work to the **`integration-test-author` agent**
    (`.claude/agents/integration-test-author.md`), one per changed service, then runs `mvn verify`
@@ -35,7 +35,8 @@ Repository secrets:
 
 | Secret | Needed for |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Claude in the sync workflow (or swap in `claude_code_oauth_token`) |
+| `ANTHROPIC_API_KEY` | Claude Code in the sync workflow (when `SYNC_AGENT` is `claude`, the default) |
+| `COPILOT_GITHUB_TOKEN` | Copilot CLI in the sync workflow (when the `SYNC_AGENT` variable is `copilot`) |
 | `TRACKED_REPOS_TOKEN` | Cloning the services if they are private (read access to their contents) |
 | `SYNC_PR_TOKEN` | Optional. Opening the sync PR with a PAT so the Integration tests workflow runs on it |
 
@@ -45,14 +46,52 @@ here) to trigger a sync on every push to `main`; without it the schedule still p
 To track another service, add it to `tracked-repos.json` and teach `scripts/start-services.sh` how to
 start it.
 
-## Using the skill and agent yourself
+## Running the sync locally
 
-Both are picked up by Claude Code in this repository:
+`scripts/sync.sh` is the whole sync in one command, and it is exactly what the workflow runs, so
+anything that works on your machine works unattended later.
 
-- `/sync-integration-tests` after `python3 scripts/tracked_repos.py detect --local-root ../` and
-  `scripts/start-services.sh` reproduces the automated sync on your machine.
-- Ask Claude to "use the integration-test-author agent to cover the new endpoint in catalog-service"
-  for one-off test work.
+```bash
+scripts/sync.sh --detect-only                      # just show what changed since the last sync
+scripts/sync.sh                                    # detect, update tests with Claude Code, verify, record
+scripts/sync.sh --agent copilot                    # same, with GitHub Copilot CLI
+scripts/sync.sh --repos my-repos.json --commit     # your own repo list; commit on branch auto/sync-tests
+```
+
+It needs a clean working tree, Java 21, Maven, and the chosen CLI logged in (`claude login` or
+`ANTHROPIC_API_KEY`; `copilot login` or `COPILOT_GITHUB_TOKEN`, plus `GH_HOST` on GitHub Enterprise).
+It never pushes. Exit status 2 means the updated suite is red; read `.work/claude-report.md` to see
+whether a test or a service is at fault.
+
+**Your own repository list.** Copy `tracked-repos.json` and point entries at local checkouts with
+`"path"` instead of `"url"` (relative paths resolve from the list's folder). The committed state of the
+configured branch is used, so commit service changes before syncing:
+
+```json
+{
+  "repositories": [
+    {
+      "name": "catalog-service",
+      "path": "../catalog-service",
+      "branch": "main",
+      "contract": "api/openapi.yaml",
+      "watch": ["api/**", "src/main/java/**"],
+      "tests": ["src/test/java/com/example/it/catalog", "src/test/java/com/example/it/flows"]
+    }
+  ]
+}
+```
+
+**Going unattended.** When you are ready, the **Sync tests** workflow runs the same script on a
+schedule and turns the result into a PR. Set the `SYNC_AGENT` repository variable to `claude`
+(default, needs `ANTHROPIC_API_KEY`) or `copilot` (needs `COPILOT_GITHUB_TOKEN`, a fine-grained PAT
+with the Copilot Requests permission). A cron job on any machine calling
+`scripts/sync.sh --commit` works too.
+
+**Skill and agent directly.** In Claude Code, `/sync-integration-tests` runs the procedure by hand
+after `scripts/tracked_repos.py detect` and `scripts/start-services.sh`, and the
+`integration-test-author` agent handles one-off test work. Copilot reads the same skill from
+`.claude/skills/` and its copy of the agent from `.github/agents/`.
 
 ## Running locally
 

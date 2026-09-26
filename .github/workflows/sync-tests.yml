@@ -16,10 +16,11 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 env:
   SYNC_BRANCH: auto/sync-tests
+  # claude or copilot; set the SYNC_AGENT repository variable to switch.
+  SYNC_AGENT: ${{ vars.SYNC_AGENT || 'claude' }}
 
 jobs:
   sync:
@@ -41,64 +42,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Detect changes
-        id: detect
-        if: steps.guard.outputs.skip == 'false'
-        run: python3 scripts/tracked_repos.py detect
-        env:
-          GH_TOKEN: ${{ secrets.TRACKED_REPOS_TOKEN || github.token }}
-
       - uses: actions/setup-java@v6
-        if: steps.detect.outputs.has_changes == 'true'
+        if: steps.guard.outputs.skip == 'false'
         with:
           distribution: temurin
           java-version: 21
           cache: maven
 
-      - name: Start services at their new heads
-        if: steps.detect.outputs.has_changes == 'true'
-        run: scripts/start-services.sh
-
-      - name: Update tests with Claude
-        if: steps.detect.outputs.has_changes == 'true'
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ github.token }}
-          # The procedure lives in the sync-integration-tests skill, which delegates test writing to the
-          # integration-test-author agent (both under .claude/).
-          prompt: |
-            Use the sync-integration-tests skill. Overall impact detected: ${{ steps.detect.outputs.impact }}.
-          claude_args: >-
-            --max-turns 80
-            --allowedTools "Skill,Agent,Task,Read,Write,Edit,Glob,Grep,Bash(mvn:*),Bash(git -C .work/repos/*),Bash(curl:*)"
-
-      - name: Run the updated suite
-        id: verify
-        if: steps.detect.outputs.has_changes == 'true'
-        continue-on-error: true
-        run: mvn -B verify
-
-      - name: Record synced commits
-        if: steps.detect.outputs.state_changed == 'true'
+      - name: Install the agent CLI
+        if: steps.guard.outputs.skip == 'false'
         run: |
-          python3 scripts/tracked_repos.py record
-          {
-            echo "Automated sync of the integration tests with the tracked service repositories."
-            echo
-            echo "## What changed upstream"
-            cat .work/changes/summary.md
-            echo
-            if [ -f .work/claude-report.md ]; then
-              echo "## Test changes"
-              cat .work/claude-report.md
-              echo
-            fi
-            if [ "${{ steps.detect.outputs.has_changes }}" = "true" ]; then
-              echo "## Verification"
-              echo "\`mvn verify\` against the new service heads: **${{ steps.verify.outcome }}**"
-            fi
-          } > .work/pr-body.md
+          if [ "$SYNC_AGENT" = "copilot" ]; then npm install -g @github/copilot; else npm install -g @anthropic-ai/claude-code; fi
+
+      # The same script runs locally; see scripts/sync.sh. Exit status 2 means the updated suite is red,
+      # which still gets a (draft) PR.
+      - name: Sync tests
+        id: detect
+        if: steps.guard.outputs.skip == 'false'
+        run: scripts/sync.sh --agent "$SYNC_AGENT" || [ $? -eq 2 ]
+        env:
+          GH_TOKEN: ${{ secrets.TRACKED_REPOS_TOKEN || github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Open pull request
         if: steps.detect.outputs.state_changed == 'true'
@@ -116,18 +81,15 @@ jobs:
           body-path: .work/pr-body.md
           labels: automated-test-sync
           # A red suite needs a human look: either the tests or the service is wrong.
-          draft: ${{ steps.verify.outcome == 'failure' }}
+          draft: ${{ steps.detect.outputs.verify == 'failure' }}
 
       - name: Upload change summary and service logs
-        if: always() && steps.detect.outcome == 'success'
+        if: always() && steps.guard.outputs.skip == 'false'
         uses: actions/upload-artifact@v7
         with:
           name: sync-diagnostics
           path: |
             .work/changes/
             .work/run/*.log
+            .work/agent.log
             .work/claude-report.md
-
-      - name: Stop services
-        if: always()
-        run: scripts/stop-services.sh

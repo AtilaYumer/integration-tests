@@ -9,7 +9,10 @@ Subcommands:
   record  Store the head commits found by the last `detect` in .sync/state.json.
 
 Uses only the standard library. GH_TOKEN, when set, is used to clone private GitHub repositories.
---local-root DIR clones from DIR/<name> instead of the configured URL, for trying things out locally.
+--config FILE uses another repository list (default tracked-repos.json).
+A repository entry may set "path" to a local checkout instead of (or as well as) "url"; the committed
+state of its branch is used, uncommitted edits are not. --local-root DIR clones every repository from
+DIR/<name>, overriding both.
 """
 import argparse
 import fnmatch
@@ -21,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG = ROOT / "tracked-repos.json"
+CONFIG = ROOT / "tracked-repos.json"  # replaced by --config
 STATE = ROOT / ".sync" / "state.json"
 WORK = ROOT / ".work"
 REPOS = WORK / "repos"
@@ -38,6 +41,8 @@ def git(repo: Path, *args: str) -> str:
 def clone_url(repo: dict, local_root: str | None) -> str:
     if local_root:
         return str(Path(local_root).resolve() / repo["name"])
+    if repo.get("path"):
+        return str((CONFIG.parent / repo["path"]).resolve())
     url = repo["url"]
     token = os.environ.get("GH_TOKEN")
     if token and url.startswith("https://github.com/"):
@@ -55,7 +60,7 @@ def clone(repo: dict, local_root: str | None) -> Path:
         check=True,
     )
     # Never leave a token in the clone's config.
-    git(target, "remote", "set-url", "origin", repo.get("url", ""))
+    git(target, "remote", "set-url", "origin", repo.get("url") or clone_url(repo, local_root))
     return target
 
 
@@ -143,7 +148,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", choices=["clone", "detect", "record"])
     parser.add_argument("--local-root", help="clone from DIR/<name> instead of the configured URLs")
+    parser.add_argument("--config", help="repository list to use instead of tracked-repos.json")
     args = parser.parse_args()
+    if args.config:
+        global CONFIG
+        CONFIG = Path(args.config).resolve()
 
     if args.command == "clone":
         for repo in json.loads(CONFIG.read_text())["repositories"]:
