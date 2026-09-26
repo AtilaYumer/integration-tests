@@ -1,0 +1,51 @@
+name: Integration tests
+
+# Runs the Rest Assured suite against the current heads of every tracked service.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [tracked-repo-updated]
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Clone tracked services
+        run: python3 scripts/tracked_repos.py clone
+        env:
+          # A token that can read the service repositories; github.token is enough while they are public.
+          GH_TOKEN: ${{ secrets.TRACKED_REPOS_TOKEN || github.token }}
+
+      - name: Start services
+        run: scripts/start-services.sh
+
+      - name: Run integration tests
+        run: mvn -B verify
+
+      - name: Upload service logs and test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-diagnostics
+          path: |
+            .work/run/*.log
+            target/failsafe-reports/
+
+      - name: Stop services
+        if: always()
+        run: scripts/stop-services.sh

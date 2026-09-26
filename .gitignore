@@ -1,0 +1,6 @@
+target/
+.work/
+.idea/
+*.iml
+.vscode/
+__pycache__/

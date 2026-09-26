@@ -1,0 +1,20 @@
+{
+  "repositories": [
+    {
+      "name": "catalog-service",
+      "url": "https://github.com/AtilaYumer/catalog-service.git",
+      "branch": "main",
+      "contract": "api/openapi.yaml",
+      "watch": ["api/**", "src/main/java/**", "src/main/resources/application*.yml"],
+      "tests": ["src/test/java/com/example/it/catalog", "src/test/java/com/example/it/flows"]
+    },
+    {
+      "name": "order-service",
+      "url": "https://github.com/AtilaYumer/order-service.git",
+      "branch": "main",
+      "contract": "api/openapi.yaml",
+      "watch": ["api/**", "src/main/java/**", "src/main/resources/application*.yml"],
+      "tests": ["src/test/java/com/example/it/order", "src/test/java/com/example/it/flows"]
+    }
+  ]
+}
