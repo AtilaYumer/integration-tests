@@ -16,9 +16,11 @@ automatically.
    - `contract-extended`: the OpenAPI contract only gained lines;
    - `contract-changed`: the contract lost or changed lines.
 4. If anything relevant changed, it starts both services at their new heads and runs Claude
-   (`anthropics/claude-code-action`) with `.github/prompts/sync-tests.md`. Claude adds tests for new
-   behaviour, refactors tests for changed behaviour, runs `mvn verify`, and writes a report. It may only
-   touch `src/test/`.
+   (`anthropics/claude-code-action`) with the **`sync-integration-tests` skill**
+   (`.claude/skills/sync-integration-tests/SKILL.md`). The skill classifies each upstream change,
+   hands the hands-on work to the **`integration-test-author` agent**
+   (`.claude/agents/integration-test-author.md`), one per changed service, then runs `mvn verify`
+   and writes a report. Only `src/test/` may change.
 5. The workflow records the new commits in `.sync/state.json` and opens a PR on `auto/sync-tests` with
    the upstream summary, Claude's report and the verification result. A red suite opens the PR as a
    draft, since it can mean a service regression rather than a stale test. No new sync runs while that
@@ -42,6 +44,15 @@ here) to trigger a sync on every push to `main`; without it the schedule still p
 
 To track another service, add it to `tracked-repos.json` and teach `scripts/start-services.sh` how to
 start it.
+
+## Using the skill and agent yourself
+
+Both are picked up by Claude Code in this repository:
+
+- `/sync-integration-tests` after `python3 scripts/tracked_repos.py detect --local-root ../` and
+  `scripts/start-services.sh` reproduces the automated sync on your machine.
+- Ask Claude to "use the integration-test-author agent to cover the new endpoint in catalog-service"
+  for one-off test work.
 
 ## Running locally
 

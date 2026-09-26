@@ -24,6 +24,11 @@ the services over HTTP; they never import service code.
 - Money comes back as a JSON number; compare with float literals such as `equalTo(42.5f)`.
 - Add a helper to `support/` only when two or more test classes need it.
 
+## Automation
+
+- `.claude/skills/sync-integration-tests/`: the sync procedure (assess impact, delegate, verify, report).
+- `.claude/agents/integration-test-author.md`: the agent that edits tests; it follows the conventions above.
+
 ## Running locally
 
 ```bash

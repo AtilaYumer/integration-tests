@@ -65,12 +65,13 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
+          # The procedure lives in the sync-integration-tests skill, which delegates test writing to the
+          # integration-test-author agent (both under .claude/).
           prompt: |
-            Follow the instructions in .github/prompts/sync-tests.md.
-            The change summary is in .work/changes/summary.json (overall impact: ${{ steps.detect.outputs.impact }}).
+            Use the sync-integration-tests skill. Overall impact detected: ${{ steps.detect.outputs.impact }}.
           claude_args: >-
-            --max-turns 60
-            --allowedTools "Read,Write,Edit,Glob,Grep,Bash(mvn:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(curl:*)"
+            --max-turns 80
+            --allowedTools "Skill,Agent,Task,Read,Write,Edit,Glob,Grep,Bash(mvn:*),Bash(git -C .work/repos/*),Bash(curl:*)"
 
       - name: Run the updated suite
         id: verify
