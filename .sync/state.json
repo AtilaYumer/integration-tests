@@ -1,1 +1,10 @@
-{}
+{
+  "catalog-service": {
+    "sha": "1d08ee874bec3fd4cb81217bff5e9b2ba23e1acc",
+    "syncedAt": "2026-10-02T10:53:20+00:00"
+  },
+  "order-service": {
+    "sha": "48ae2a6252a3be4609438ba2a7d229535776a27b",
+    "syncedAt": "2026-10-02T10:53:20+00:00"
+  }
+}
