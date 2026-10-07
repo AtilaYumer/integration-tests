@@ -3,8 +3,8 @@ name: Sync tests with tracked repositories
 # Looks for changes in the tracked service repositories since the last sync. When something that can
 # affect the API changed, Claude adds or refactors the integration tests, and the result is opened as a PR.
 on:
-  schedule:
-    - cron: "0 5 * * 1-5"   # weekdays 05:00 UTC
+#  schedule:
+#    - cron: "0 5 * * 1-5"   # weekdays 05:00 UTC
   workflow_dispatch:
   repository_dispatch:
     types: [tracked-repo-updated]
